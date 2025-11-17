@@ -268,11 +268,11 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
             playerController.SetInVehicle(true);
         }
         
-        // Hide interact button, show vehicle controls
+        // Hide interact button, show helicopter controls (not vehicle controls)
         if (UIController.instance != null)
         {
             UIController.instance.interactButton.gameObject.SetActive(false);
-            UIController.instance.ShowVehicleControls(true);
+            UIController.instance.ShowHelicopterControls(true); // Dùng method riêng cho helicopter
             
             // Connect helicopter buttons
             ConnectHelicopterButtons();
@@ -297,10 +297,10 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
             playerController.SetInVehicle(false);
         }
         
-        // Hide vehicle controls
+        // Hide helicopter controls
         if (UIController.instance != null)
         {
-            UIController.instance.ShowVehicleControls(false);
+            UIController.instance.ShowHelicopterControls(false); // Dùng method riêng
         }
     }
     
@@ -308,14 +308,11 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
     {
         if (UIController.instance == null || currentHelicopter == null) return;
         
-        Debug.Log("Connecting helicopter buttons...");
-        
         // Tìm hoặc thêm EventTrigger cho Gas button
         UnityEngine.EventSystems.EventTrigger gasEventTrigger = UIController.instance.gasButton.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
         if (gasEventTrigger == null)
         {
             gasEventTrigger = UIController.instance.gasButton.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
-            Debug.Log("Added EventTrigger to Gas button");
         }
         
         // Xóa listeners cũ
@@ -325,7 +322,6 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         UnityEngine.EventSystems.EventTrigger.Entry gasDownEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
         gasDownEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
         gasDownEntry.callback.AddListener((data) => { 
-            Debug.Log("Gas button pointer down triggered");
             if (currentHelicopter != null) 
                 currentHelicopter.OnGasPressed(); 
         });
@@ -335,7 +331,6 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         UnityEngine.EventSystems.EventTrigger.Entry gasUpEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
         gasUpEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
         gasUpEntry.callback.AddListener((data) => { 
-            Debug.Log("Gas button pointer up triggered");
             if (currentHelicopter != null) 
                 currentHelicopter.OnGasReleased(); 
         });
@@ -346,7 +341,6 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         if (reverseEventTrigger == null)
         {
             reverseEventTrigger = UIController.instance.reverseButton.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
-            Debug.Log("Added EventTrigger to Reverse button");
         }
         
         // Xóa listeners cũ
@@ -356,7 +350,6 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         UnityEngine.EventSystems.EventTrigger.Entry reverseDownEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
         reverseDownEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
         reverseDownEntry.callback.AddListener((data) => { 
-            Debug.Log("Reverse button pointer down triggered");
             if (currentHelicopter != null) 
                 currentHelicopter.OnReversePressed(); 
         });
@@ -366,13 +359,70 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         UnityEngine.EventSystems.EventTrigger.Entry reverseUpEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
         reverseUpEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
         reverseUpEntry.callback.AddListener((data) => { 
-            Debug.Log("Reverse button pointer up triggered");
             if (currentHelicopter != null) 
                 currentHelicopter.OnReverseReleased(); 
         });
         reverseEventTrigger.triggers.Add(reverseUpEntry);
         
-        Debug.Log($"Helicopter buttons connected. Gas triggers: {gasEventTrigger.triggers.Count}, Reverse triggers: {reverseEventTrigger.triggers.Count}");
+        // Connect Rotate Left button
+        if (UIController.instance.rotateLeft != null)
+        {
+            UnityEngine.EventSystems.EventTrigger rotateLeftTrigger = UIController.instance.rotateLeft.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+            if (rotateLeftTrigger == null)
+            {
+                rotateLeftTrigger = UIController.instance.rotateLeft.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            }
+            
+            rotateLeftTrigger.triggers.Clear();
+            
+            // PointerDown - Bắt đầu quay
+            UnityEngine.EventSystems.EventTrigger.Entry rotateLeftDownEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
+            rotateLeftDownEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
+            rotateLeftDownEntry.callback.AddListener((data) => {
+                if (currentHelicopter != null)
+                    currentHelicopter.OnRotateLeftPressed();
+            });
+            rotateLeftTrigger.triggers.Add(rotateLeftDownEntry);
+            
+            // PointerUp - Dừng quay
+            UnityEngine.EventSystems.EventTrigger.Entry rotateLeftUpEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
+            rotateLeftUpEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
+            rotateLeftUpEntry.callback.AddListener((data) => {
+                if (currentHelicopter != null)
+                    currentHelicopter.OnRotateLeftReleased();
+            });
+            rotateLeftTrigger.triggers.Add(rotateLeftUpEntry);
+        }
+        
+        // Connect Rotate Right button
+        if (UIController.instance.rotateRight != null)
+        {
+            UnityEngine.EventSystems.EventTrigger rotateRightTrigger = UIController.instance.rotateRight.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+            if (rotateRightTrigger == null)
+            {
+                rotateRightTrigger = UIController.instance.rotateRight.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            }
+            
+            rotateRightTrigger.triggers.Clear();
+            
+            // PointerDown - Bắt đầu quay
+            UnityEngine.EventSystems.EventTrigger.Entry rotateRightDownEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
+            rotateRightDownEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
+            rotateRightDownEntry.callback.AddListener((data) => {
+                if (currentHelicopter != null)
+                    currentHelicopter.OnRotateRightPressed();
+            });
+            rotateRightTrigger.triggers.Add(rotateRightDownEntry);
+            
+            // PointerUp - Dừng quay
+            UnityEngine.EventSystems.EventTrigger.Entry rotateRightUpEntry = new UnityEngine.EventSystems.EventTrigger.Entry();
+            rotateRightUpEntry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
+            rotateRightUpEntry.callback.AddListener((data) => {
+                if (currentHelicopter != null)
+                    currentHelicopter.OnRotateRightReleased();
+            });
+            rotateRightTrigger.triggers.Add(rotateRightUpEntry);
+        }
     }
     
     private void DisconnectHelicopterButtons()
@@ -391,6 +441,26 @@ public class VehicleInteraction : MonoBehaviourPunCallbacks
         if (reverseEventTrigger != null)
         {
             reverseEventTrigger.triggers.Clear();
+        }
+        
+        // Clear Rotate Left button
+        if (UIController.instance.rotateLeft != null)
+        {
+            UnityEngine.EventSystems.EventTrigger rotateLeftTrigger = UIController.instance.rotateLeft.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+            if (rotateLeftTrigger != null)
+            {
+                rotateLeftTrigger.triggers.Clear();
+            }
+        }
+        
+        // Clear Rotate Right button
+        if (UIController.instance.rotateRight != null)
+        {
+            UnityEngine.EventSystems.EventTrigger rotateRightTrigger = UIController.instance.rotateRight.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+            if (rotateRightTrigger != null)
+            {
+                rotateRightTrigger.triggers.Clear();
+            }
         }
     }
     

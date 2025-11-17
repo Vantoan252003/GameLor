@@ -11,7 +11,7 @@ public class HelicopterController : MonoBehaviourPunCallbacks
     [SerializeField] private float tiltForce = 30f;
     [SerializeField] private float maxTiltAngle = 45f;
     [SerializeField] private float stabilizationSpeed = 2f;
-    [SerializeField] private float forwardSpeed = 3000f;
+    [SerializeField] private float forwardSpeed = 10000f;
     [SerializeField] private float maxSpeed = 50f;
     [SerializeField] private float rotationSpeed = 100f;
     
@@ -46,6 +46,8 @@ public class HelicopterController : MonoBehaviourPunCallbacks
     [Header("Mobile Controls")]
     public bool isAscending = false;  // Gas button - bay lên
     public bool isDescending = false; // Reverse button - hạ xuống
+    public bool isRotatingLeft = false;  // Rotate Left button
+    public bool isRotatingRight = false; // Rotate Right button
     
     private FixedJoystick joystick;
     private float currentRotorSpeed = 0f;
@@ -99,24 +101,39 @@ public class HelicopterController : MonoBehaviourPunCallbacks
     
     private void HandleVerticalMovement()
     {
+        // Chỉ cho bay khi rotor speed đủ nhanh (> 0.6)
+        float minRotorSpeedToFly = 0.6f;
+        
         // GAS BUTTON - Bay lên
         if (SimpleInput.GetButton("Gas") || isAscending)
         {
-            rb.AddForce(Vector3.up * liftForce, ForceMode.Force);
+            // Rotor luôn tăng tốc khi nhấn Gas
             currentRotorSpeed = Mathf.Lerp(currentRotorSpeed, 1f, Time.fixedDeltaTime * 2f);
-            Debug.Log($"Lifting! Force: {liftForce}, Velocity: {rb.velocity.y}");
+            
+            // Chỉ bay lên khi rotor đủ nhanh
+            if (currentRotorSpeed >= minRotorSpeedToFly)
+            {
+                rb.AddForce(Vector3.up * liftForce, ForceMode.Force);
+            }
         }
         // REVERSE BUTTON - Hạ xuống
         else if (SimpleInput.GetButton("Reverse") || isDescending)
         {
             rb.AddForce(Vector3.down * descendForce, ForceMode.Force);
             currentRotorSpeed = Mathf.Lerp(currentRotorSpeed, 0.3f, Time.fixedDeltaTime * 2f);
-            Debug.Log($"Descending! Force: {descendForce}, Velocity: {rb.velocity.y}");
         }
         else
         {
-            // Hover mode - duy trì độ cao
-            currentRotorSpeed = Mathf.Lerp(currentRotorSpeed, 0.5f, Time.fixedDeltaTime);
+            // Hover mode - duy trì độ cao (chống lại trọng lực)
+            currentRotorSpeed = Mathf.Lerp(currentRotorSpeed, 0.65f, Time.fixedDeltaTime);
+            
+            // Apply hover force để chống trọng lực (không bay lên, chỉ giữ độ cao)
+            if (currentRotorSpeed >= minRotorSpeedToFly)
+            {
+                // Hover force = một phần của lift force để giữ cân bằng
+                float hoverForce = liftForce * 0.7f; // 40% lift force để hover
+                rb.AddForce(Vector3.up * hoverForce, ForceMode.Force);
+            }
         }
     }
     
@@ -148,30 +165,55 @@ public class HelicopterController : MonoBehaviourPunCallbacks
         rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, Time.fixedDeltaTime * stabilizationSpeed));
     }
     
-    private void HandleForwardMovement()
+        private void HandleForwardMovement()
     {
-        // Di chuyển theo hướng nghiêng
-        Vector3 forwardDirection = transform.forward * currentTilt.x + transform.right * -currentTilt.z;
+
+        Vector3 eulerAngles = transform.eulerAngles;
+        float pitchAngle = eulerAngles.x > 180 ? eulerAngles.x - 360 : eulerAngles.x;
+        float rollAngle = eulerAngles.z > 180 ? eulerAngles.z - 360 : eulerAngles.z;
         
-        if (forwardDirection.magnitude > 0.1f)
+        Vector3 moveDirection = Vector3.zero;
+        
+        if (Mathf.Abs(pitchAngle) > 2f)
         {
-            float currentSpeed = rb.velocity.magnitude;
-            if (currentSpeed < maxSpeed)
-            {
-                rb.AddForce(forwardDirection.normalized * forwardSpeed, ForceMode.Force);
-            }
+            float pitchFactor = Mathf.Clamp(pitchAngle / maxTiltAngle, -1f, 1f);
+            moveDirection += transform.forward * pitchFactor;
+        }
+        
+        // Di chuyển trái/phải khi nghiêng sang
+        if (Mathf.Abs(rollAngle) > 2f)
+        {
+            float rollFactor = Mathf.Clamp(rollAngle / maxTiltAngle, -1f, 1f);
+            moveDirection += -transform.right * rollFactor;
+        }
+        
+        if (moveDirection.magnitude > 0.01f && currentRotorSpeed > 0.5f)
+        {
+            float speedMultiplier = 10;
+            rb.AddForce(moveDirection.normalized * forwardSpeed * speedMultiplier, ForceMode.Force);
+        }
+        
+        Vector3 horizontalVelocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+        if (horizontalVelocity.magnitude > maxSpeed)
+        {
+            horizontalVelocity = horizontalVelocity.normalized * maxSpeed;
+            rb.velocity = new Vector3(horizontalVelocity.x, rb.velocity.y, horizontalVelocity.z);
         }
     }
-    
     private void HandleRotation()
     {
-        // Rotation với A/D hoặc keyboard
         float rotationInput = 0f;
         
-        // Có thể dùng Q/E để xoay nếu muốn
+        // PC controls (Q/E)
         if (Input.GetKey(KeyCode.Q))
             rotationInput = -1f;
         else if (Input.GetKey(KeyCode.E))
+            rotationInput = 1f;
+        
+        // Mobile controls (buttons)
+        if (isRotatingLeft)
+            rotationInput = -1f;
+        else if (isRotatingRight)
             rotationInput = 1f;
         
         if (Mathf.Abs(rotationInput) > 0.1f)
@@ -184,28 +226,18 @@ public class HelicopterController : MonoBehaviourPunCallbacks
     
     private void UpdateRotors()
     {
-        // Điều khiển animation speed trực tiếp (không cần parameter)
-        if (helicopterAnimator == null) 
-        {
-            Debug.LogWarning("Helicopter Animator chưa được gán!");
-            return;
-        }
-        
-        // Tính target speed dựa trên trạng thái bay
+        if (helicopterAnimator == null) return;
         float targetSpeed = 0f;
         
         if (isBeingFlown)
         {
-            // Khi đang bay, tốc độ rotor phụ thuộc vào currentRotorSpeed (0-1)
             targetSpeed = currentRotorSpeed * maxRotorAnimationSpeed;
         }
         else
         {
-            // Khi không bay, về 0
             targetSpeed = 0f;
         }
         
-        // Lerp animation speed mượt mà
         float currentSpeed = helicopterAnimator.speed;
         float newSpeed;
         
@@ -222,8 +254,6 @@ public class HelicopterController : MonoBehaviourPunCallbacks
         
         // Set animator speed trực tiếp
         helicopterAnimator.speed = newSpeed;
-        
-        Debug.Log($"Rotor Animation Speed: {newSpeed:F2} (Target: {targetSpeed:F2}, IsFlying: {isBeingFlown})");
     }
     
     private void UpdateRotorSound()
@@ -338,32 +368,52 @@ public class HelicopterController : MonoBehaviourPunCallbacks
         return isBeingFlown;
     }
     
-    // Mobile button control methods - Giống xe
     public void OnGasPressed()
     {
         if (!photonView.IsMine || !isBeingFlown) return;
-        Debug.Log("Helicopter Gas Pressed!");
         isAscending = true;
     }
     
     public void OnGasReleased()
     {
         if (!photonView.IsMine || !isBeingFlown) return;
-        Debug.Log("Helicopter Gas Released!");
         isAscending = false;
     }
     
     public void OnReversePressed()
     {
         if (!photonView.IsMine || !isBeingFlown) return;
-        Debug.Log("Helicopter Reverse Pressed!");
         isDescending = true;
     }
     
     public void OnReverseReleased()
     {
         if (!photonView.IsMine || !isBeingFlown) return;
-        Debug.Log("Helicopter Reverse Released!");
         isDescending = false;
+    }
+    
+    // Mobile rotation control methods - Giống Q và E
+    public void OnRotateLeftPressed()
+    {
+        if (!photonView.IsMine || !isBeingFlown) return;
+        isRotatingLeft = true;
+    }
+    
+    public void OnRotateLeftReleased()
+    {
+        if (!photonView.IsMine || !isBeingFlown) return;
+        isRotatingLeft = false;
+    }
+    
+    public void OnRotateRightPressed()
+    {
+        if (!photonView.IsMine || !isBeingFlown) return;
+        isRotatingRight = true;
+    }
+    
+    public void OnRotateRightReleased()
+    {
+        if (!photonView.IsMine || !isBeingFlown) return;
+        isRotatingRight = false;
     }
 }

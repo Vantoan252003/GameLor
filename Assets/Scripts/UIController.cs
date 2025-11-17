@@ -50,8 +50,13 @@ public class UIController : MonoBehaviour
     public Button gasButton;
     public Button reverseButton;
     public Button brakeButton;
+
+    [Header("Helicopter Control UI")]
+    public GameObject helicopterControlPanel;
+    public Button rotateLeft;
+    public Button rotateRight;
     
-    [Header("Game Control Buttons - Ẩn khi trong xe")]
+    [Header("Game Control Buttons")]
     public GameObject shootButton;
     public GameObject jumpButton;
     public GameObject weaponButton;
@@ -140,15 +145,45 @@ public class UIController : MonoBehaviour
             vehicleControlPanel.SetActive(show);
         }
         
+        // Ẩn helicopter controls khi ở xe
+        if (helicopterControlPanel != null)
+        {
+            helicopterControlPanel.SetActive(false);
+        }
+        
         // Ẩn/hiện game controls (ngược lại)
         if (shootButton != null) shootButton.SetActive(!show);
         if (jumpButton != null) jumpButton.SetActive(!show);
         if (weaponButton != null) weaponButton.SetActive(!show);
         if (scopeButton != null) scopeButton.SetActive(!show);
         if (reloadButton != null) reloadButton.SetActive(!show);
+    }
+    
+    public void ShowHelicopterControls(bool show)
+    {
+        // Hiện/ẩn gas và reverse (giữ nguyên)
+        if (vehicleControlPanel != null)
+        {
+            vehicleControlPanel.SetActive(show);
+        }
         
-        // Ẩn/hiện ammo text và health
-        if (ammoText != null) ammoText.gameObject.SetActive(!show);
-        if (healthSlider != null) healthSlider.gameObject.SetActive(!show);
+        // Ẩn brake button khi ở helicopter
+        if (brakeButton != null)
+        {
+            brakeButton.gameObject.SetActive(!show);
+        }
+        
+        // Hiện/ẩn helicopter rotation controls
+        if (helicopterControlPanel != null)
+        {
+            helicopterControlPanel.SetActive(show);
+        }
+        
+        // Ẩn/hiện game controls (ngược lại)
+        if (shootButton != null) shootButton.SetActive(!show);
+        if (jumpButton != null) jumpButton.SetActive(!show);
+        if (weaponButton != null) weaponButton.SetActive(!show);
+        if (scopeButton != null) scopeButton.SetActive(!show);
+        if (reloadButton != null) reloadButton.SetActive(!show);
     }
 }

@@ -451,15 +451,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e049efec5bb0e1d2be1ced0549c140c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  liftForce: 5000
+  liftForce: 30000
   descendForce: 3000
   tiltForce: 30
   maxTiltAngle: 45
   stabilizationSpeed: 2
-  forwardSpeed: 3000
+  forwardSpeed: 80000
   maxSpeed: 50
-  rotationSpeed: 100
-  helicopterAnimator: {fileID: 0}
+  rotationSpeed: 20
+  helicopterAnimator: {fileID: 9500000}
   idleAnimationName: Helicopter_Idle
   maxRotorAnimationSpeed: 1
   rotorSpeedUpRate: 0.5
@@ -477,6 +477,8 @@ MonoBehaviour:
   maxPitch: 1.5
   isAscending: 0
   isDescending: 0
+  isRotatingLeft: 0
+  isRotatingRight: 0
 --- !u!114 &6213765272942607783
 MonoBehaviour:
   m_ObjectHideFlags: 0
