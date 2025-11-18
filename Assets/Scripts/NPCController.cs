@@ -3,10 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-/// <summary>
-/// Controller cho NPC (dân thường đi lại như trong GTA)
-/// Sử dụng NavMesh để di chuyển
-/// </summary>
+
 [RequireComponent(typeof(NavMeshAgent))]
 public class NPCController : MonoBehaviour
 {
@@ -19,9 +16,8 @@ public class NPCController : MonoBehaviour
 
     [Header("Behavior Settings")]
     [SerializeField] private bool canRun = true;
-    [SerializeField] private float runChance = 0.2f; // 20% khả năng chạy
-    [SerializeField] private float fleeDistance = 10f; // Khoảng cách chạy trốn khi nghe tiếng súng
-
+    [SerializeField] private float runChance = 0.2f; 
+    [SerializeField] private float fleeDistance = 10f; 
     [Header("Animation (Optional)")]
     [SerializeField] private Animator animator;
 
@@ -46,11 +42,10 @@ public class NPCController : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         startPosition = transform.position;
         
-        // Đặt tốc độ ban đầu
+     
         currentSpeed = walkSpeed;
         agent.speed = currentSpeed;
 
-        // Bắt đầu di chuyển ngẫu nhiên
         StartCoroutine(WanderRoutine());
     }
 
@@ -81,12 +76,12 @@ public class NPCController : MonoBehaviour
         {
             if (!isFleeing && !isWaiting)
             {
-                // Chọn điểm đích ngẫu nhiên
+            
                 Vector3 randomPoint = GetRandomPointInRadius(startPosition, wanderRadius);
                 
                 if (randomPoint != Vector3.zero)
                 {
-                    // Quyết định đi bộ hay chạy
+            
                     bool shouldRun = canRun && Random.value < runChance;
                     
                     if (shouldRun)
@@ -101,11 +96,9 @@ public class NPCController : MonoBehaviour
                     }
 
                     agent.SetDestination(randomPoint);
-                    
-                    // Đợi đến khi đến nơi
+   
                     yield return new WaitUntil(() => !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance);
                     
-                    // Nghỉ một lúc tại điểm đích
                     isWaiting = true;
                     SetState(NPCState.Idle);
                     float waitTime = Random.Range(minWaitTime, maxWaitTime);
@@ -118,9 +111,6 @@ public class NPCController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Lấy điểm ngẫu nhiên trong bán kính
-    /// </summary>
     private Vector3 GetRandomPointInRadius(Vector3 origin, float radius)
     {
         Vector3 randomDirection = Random.insideUnitSphere * radius;
@@ -135,9 +125,6 @@ public class NPCController : MonoBehaviour
         return Vector3.zero;
     }
 
-    /// <summary>
-    /// NPC chạy trốn khỏi vị trí nguy hiểm
-    /// </summary>
     public void FleeFrom(Vector3 dangerPosition)
     {
         if (!isFleeing)
@@ -146,16 +133,12 @@ public class NPCController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Routine chạy trốn
-    /// </summary>
     private IEnumerator FleeRoutine(Vector3 dangerPosition)
     {
         isFleeing = true;
         SetState(NPCState.Fleeing);
         agent.speed = runSpeed * 1.2f; // Chạy nhanh hơn khi sợ hãi
 
-        // Tính hướng chạy trốn (ngược lại với nguồn nguy hiểm)
         Vector3 fleeDirection = (transform.position - dangerPosition).normalized;
         Vector3 fleePosition = transform.position + fleeDirection * fleeDistance;
 
@@ -163,8 +146,7 @@ public class NPCController : MonoBehaviour
         if (NavMesh.SamplePosition(fleePosition, out hit, fleeDistance, NavMesh.AllAreas))
         {
             agent.SetDestination(hit.position);
-            
-            // Đợi đến khi chạy xong
+       
             yield return new WaitForSeconds(5f);
         }
 
@@ -172,22 +154,17 @@ public class NPCController : MonoBehaviour
         agent.speed = walkSpeed;
     }
 
-    /// <summary>
-    /// Đặt trạng thái của NPC
-    /// </summary>
     private void SetState(NPCState newState)
     {
         currentState = newState;
     }
 
-    /// <summary>
-    /// Cập nhật animation dựa trên trạng thái
-    /// </summary>
+
     private void UpdateAnimation()
     {
         if (animator != null)
         {
-            // Tính tốc độ di chuyển
+    
             float speed = agent.velocity.magnitude;
             
             animator.SetFloat("Speed", speed);
@@ -197,9 +174,6 @@ public class NPCController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Vẽ Gizmos để debug
-    /// </summary>
     private void OnDrawGizmosSelected()
     {
         // Vẽ bán kính di chuyển
