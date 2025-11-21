@@ -496,6 +496,7 @@ MonoBehaviour:
   recoilUp: 0.2
   recoilBack: 0.1
   recovering: 0
+  maxReserveAmmo: 120
   displayDuration: 3
   maxSoundDistance: 10
 --- !u!143 &6976499767516088643
@@ -2450,6 +2451,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects:
     - {fileID: 65702495048144492, guid: 835e6976dc6d2d040a19fb08e31a8227, type: 3}
+    - {fileID: -516098083770646512, guid: 835e6976dc6d2d040a19fb08e31a8227, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 5332809968238436118, guid: 835e6976dc6d2d040a19fb08e31a8227, type: 3}

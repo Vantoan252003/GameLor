@@ -2,9 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Spawner để tạo và quản lý NPC trong game
-/// </summary>
 public class NPCSpawner : MonoBehaviour
 {
     [Header("NPC Prefabs")]
@@ -47,10 +44,6 @@ public class NPCSpawner : MonoBehaviour
             StartCoroutine(DynamicSpawnRoutine());
         }
     }
-
-    /// <summary>
-    /// Spawn NPC ban đầu
-    /// </summary>
     private void SpawnInitialNPCs()
     {
         for (int i = 0; i < targetNPCCount; i++)
@@ -61,9 +54,6 @@ public class NPCSpawner : MonoBehaviour
         Debug.Log($"Đã spawn {targetNPCCount} NPC");
     }
 
-    /// <summary>
-    /// Spawn một NPC
-    /// </summary>
     public GameObject SpawnNPC()
     {
         Vector3 spawnPosition = GetSpawnPosition();
@@ -86,9 +76,6 @@ public class NPCSpawner : MonoBehaviour
         return npc;
     }
 
-    /// <summary>
-    /// Lấy vị trí spawn
-    /// </summary>
     private Vector3 GetSpawnPosition()
     {
         if (useSpawnPoints && spawnPoints != null && spawnPoints.Length > 0)

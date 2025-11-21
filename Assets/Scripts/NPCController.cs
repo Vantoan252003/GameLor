@@ -17,7 +17,13 @@ public class NPCController : MonoBehaviour
     [Header("Behavior Settings")]
     [SerializeField] private bool canRun = true;
     [SerializeField] private float runChance = 0.2f; 
-    [SerializeField] private float fleeDistance = 10f; 
+    [SerializeField] private float fleeDistance = 10f;
+    
+    [Header("Health Settings")]
+    [SerializeField] private float maxHealth = 100f;
+    [SerializeField] private float respawnTime = 5f;
+    [SerializeField] private float respawnRadius = 50f; // Khoảng cách xa để respawn
+    
     [Header("Animation (Optional)")]
     [SerializeField] private Animator animator;
 
@@ -26,6 +32,8 @@ public class NPCController : MonoBehaviour
     private bool isWaiting = false;
     private bool isFleeing = false;
     private float currentSpeed;
+    private float currentHealth;
+    private bool isDead = false;
 
     private enum NPCState
     {
@@ -42,24 +50,33 @@ public class NPCController : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         startPosition = transform.position;
         
-     
+        // Cải thiện obstacle avoidance
+        agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+        agent.avoidancePriority = 50;
+        
         currentSpeed = walkSpeed;
         agent.speed = currentSpeed;
+        currentHealth = maxHealth;
 
         StartCoroutine(WanderRoutine());
     }
 
     void Update()
     {
-        // Cập nhật animation nếu có
+        // CHỈ cập nhật khi NPC còn sống và agent đang active
+        if (isDead || !agent.enabled) return;
+
+        // Cập nhật animation
         UpdateAnimation();
 
-        // Kiểm tra xem đã đến đích chưa
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        // Kiểm tra xem đã đến đích chưa - CHỈ khi ĐANG DI CHUYỂN
+        if ((currentState == NPCState.Walking || currentState == NPCState.Running) && 
+            !agent.pathPending && 
+            agent.remainingDistance <= agent.stoppingDistance)
         {
-            if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
+            if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.1f)
             {
-                if (currentState != NPCState.Idle && !isWaiting && !isFleeing)
+                if (!isWaiting && !isFleeing)
                 {
                     SetState(NPCState.Idle);
                 }
@@ -68,32 +85,22 @@ public class NPCController : MonoBehaviour
     }
 
     /// <summary>
-    /// Routine di chuyển ngẫu nhiên
+    /// Routine di chuyển ngẫu nhiên - CHỈ ĐI BỘ
     /// </summary>
     private IEnumerator WanderRoutine()
     {
         while (true)
         {
-            if (!isFleeing && !isWaiting)
+            if (!isFleeing && !isWaiting && !isDead)
             {
             
                 Vector3 randomPoint = GetRandomPointInRadius(startPosition, wanderRadius);
                 
                 if (randomPoint != Vector3.zero)
                 {
-            
-                    bool shouldRun = canRun && Random.value < runChance;
-                    
-                    if (shouldRun)
-                    {
-                        SetState(NPCState.Running);
-                        agent.speed = runSpeed;
-                    }
-                    else
-                    {
-                        SetState(NPCState.Walking);
-                        agent.speed = walkSpeed;
-                    }
+                    // CHỈ ĐI BỘ - không chạy ngẫu nhiên
+                    SetState(NPCState.Walking);
+                    agent.speed = walkSpeed;
 
                     agent.SetDestination(randomPoint);
    
@@ -154,23 +161,96 @@ public class NPCController : MonoBehaviour
         agent.speed = walkSpeed;
     }
 
+    /// <summary>
+    /// NPC nhận sát thương
+    /// </summary>
+    public void TakeDamage(float damage, Vector3 damageSource, int killerActorNumber = -1)
+    {
+        if (isDead) return;
+
+        currentHealth -= damage;
+        
+        if (currentHealth <= 0)
+        {
+            Die(killerActorNumber);
+        }
+        else
+        {
+            // Còn sống thì bỏ chạy
+            FleeFrom(damageSource);
+        }
+    }
+
+    /// <summary>
+    /// NPC chết
+    /// </summary>
+    private void Die(int killerActorNumber = -1)
+    {
+        isDead = true;
+        SetState(NPCState.Idle);
+        
+        // Dừng NavMeshAgent
+        agent.isStopped = true;
+        agent.velocity = Vector3.zero;
+        
+        // Cộng điểm kill cho người bắn (chỉ trong multiplayer)
+        if (killerActorNumber > 0 && MatchManager.instance != null)
+        {
+            MatchManager.instance.UpdateStatsSend(killerActorNumber, 0, 1);
+        }
+        
+        gameObject.SetActive(false);
+
+        // Respawn sau vài giây
+        Invoke("Respawn", respawnTime);
+    }
+
+    private void Respawn()
+    {
+        Vector3 respawnPoint = GetRandomPointInRadius(startPosition, respawnRadius);
+        
+        if (respawnPoint != Vector3.zero)
+        {
+            transform.position = respawnPoint;
+        }
+        else
+        {
+            transform.position = startPosition;
+        }
+
+        // Reset trạng thái
+        currentHealth = maxHealth;
+        isDead = false;
+        agent.isStopped = false;
+        gameObject.SetActive(true);
+
+        SetState(NPCState.Idle);
+        isFleeing = false;
+        isWaiting = false;
+    }
+
     private void SetState(NPCState newState)
     {
-        currentState = newState;
+        if (currentState != newState)
+        {
+            Debug.Log($"[{gameObject.name}] NPC State Change: {currentState} -> {newState}");
+            currentState = newState;
+        }
     }
 
 
     private void UpdateAnimation()
     {
-        if (animator != null)
+        if (animator != null && agent.enabled)
         {
-    
             float speed = agent.velocity.magnitude;
             
+            if (speed > 0.01f)
+            {
+                Debug.Log($"[{gameObject.name}] Speed: {speed:F2}, State: {currentState}, HasPath: {agent.hasPath}, IsStopped: {agent.isStopped}");
+            }
+            
             animator.SetFloat("Speed", speed);
-            animator.SetBool("IsWalking", currentState == NPCState.Walking);
-            animator.SetBool("IsRunning", currentState == NPCState.Running || currentState == NPCState.Fleeing);
-            animator.SetBool("IsIdle", currentState == NPCState.Idle);
         }
     }
 

@@ -109,6 +109,10 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private Coroutine reloadAnimationCo;
     private FixedJoystick joystick;
     private Image damageScreen;
+    
+    [Header("Ammo Inventory")]
+    [SerializeField] private int maxReserveAmmo = 90; 
+    private Dictionary<int, int> reserveAmmo = new Dictionary<int, int>();
 
     public float displayDuration = 3.0f;
     private float displayTimer = 0.0f;
@@ -153,6 +157,13 @@ public class PlayerController : MonoBehaviourPunCallbacks
             allGuns[_selectedGun].currentAmmo = allGuns[_selectedGun].ammo;
             UIController.instance.healthSlider.maxValue = maxHealth;
             UIController.instance.healthSlider.value = _currentHealth;
+            
+            // Khởi tạo đạn dự trữ cho mỗi loại súng
+            InitializeReserveAmmo();
+            
+            // Thiết lập reload button
+            SetupReloadButton();
+            
             UpdateUI();
         }
         else{
@@ -559,7 +570,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
         _shotCounter = allGuns[_selectedGun].timeBetweenShots;
 
-        if (allGuns[_selectedGun].currentAmmo <= 0) { ReloadWeapon(); return; }
+        // Không tự động reload, chỉ return khi hết đạn
+        if (allGuns[_selectedGun].currentAmmo <= 0) { return; }
 
         Ray ray = _cam.ViewportPointToRay(new Vector3(.5f, .5f, 0f));
         ray.origin = _cam.transform.position;
@@ -572,6 +584,13 @@ public class PlayerController : MonoBehaviourPunCallbacks
             }
             else
             {
+                // Kiểm tra nếu bắn trúng NPC
+                NPCController npc = hit.collider.GetComponent<NPCController>();
+                if (npc != null)
+                {
+                    npc.TakeDamage(allGuns[_selectedGun].shotDamage, transform.position, PhotonNetwork.LocalPlayer.ActorNumber);
+                }
+                
                 if (_selectedGun != 2) // Pemeriksaan jika senjata yang dipilih bukan pisau
                 {
                     GameObject bulletImpactObject = Instantiate(bulletImpact, hit.point + (hit.normal * .002f), Quaternion.LookRotation(hit.normal, Vector3.up));
@@ -610,15 +629,89 @@ public class PlayerController : MonoBehaviourPunCallbacks
     {
         if (isReloading) { return; }
         if (allGuns[_selectedGun].currentAmmo == allGuns[_selectedGun].ammo) { return; }
-        if (Input.GetKeyDown(KeyCode.R))
+        // Kiểm tra cả keyboard và reload button
+        if (Input.GetKeyDown(KeyCode.R) || SimpleInput.GetButtonDown("Reload"))
         {
             ReloadWeapon();
         }
     }
 
+    private void InitializeReserveAmmo()
+    {
+        // Khởi tạo đạn dự trữ cho mỗi loại súng (trừ pisau - index 2)
+        for (int i = 0; i < allGuns.Count; i++)
+        {
+            if (!allGuns[i].isMale) // Nếu không phải pisau
+            {
+                reserveAmmo[i] = maxReserveAmmo;
+            }
+        }
+    }
+
+    private void SetupReloadButton()
+    {
+        if (UIController.instance.reloadButton != null)
+        {
+            Button reloadBtn = UIController.instance.reloadButton.GetComponent<Button>();
+            if (reloadBtn != null)
+            {
+                reloadBtn.onClick.AddListener(OnReloadButtonClicked);
+            }
+        }
+    }
+
+    private void OnReloadButtonClicked()
+    {
+        if (!isReloading && allGuns[_selectedGun].currentAmmo < allGuns[_selectedGun].ammo)
+        {
+            ReloadWeapon();
+        }
+    }
+
+    // Phương thức để thêm đạn từ hộp đạn
+    public bool AddAmmo(int amount)
+    {
+        // Không thêm đạn cho pisau
+        if (allGuns[_selectedGun].isMale)
+        {
+            return false;
+        }
+
+        // Kiểm tra xem đạn dự trữ đã đầy chưa
+        if (!reserveAmmo.ContainsKey(_selectedGun))
+        {
+            reserveAmmo[_selectedGun] = 0;
+        }
+
+        if (reserveAmmo[_selectedGun] >= maxReserveAmmo)
+        {
+            return false; // Đạn dự trữ đã đầy
+        }
+
+        // Thêm đạn vào dự trữ
+        reserveAmmo[_selectedGun] = Mathf.Min(reserveAmmo[_selectedGun] + amount, maxReserveAmmo);
+        
+        // Cập nhật UI
+        UpdateUI();
+        
+        return true;
+    }
+
 
     private void ReloadWeapon()
     {
+        // Không reload nếu không có đạn dự trữ
+        if (!reserveAmmo.ContainsKey(_selectedGun) || reserveAmmo[_selectedGun] <= 0)
+        {
+            return;
+        }
+        
+        // Không reload nếu băng đạn đã đầy
+        if (allGuns[_selectedGun].currentAmmo >= allGuns[_selectedGun].ammo)
+        {
+            return;
+        }
+        
         isReloading = true;
         if (_selectedGun == 0 )
         {
@@ -635,23 +728,36 @@ public class PlayerController : MonoBehaviourPunCallbacks
     IEnumerator ReloadWeaponOverTime()
     {
         if (reloadAnimationCo != null) { StopCoroutine(reloadAnimationCo); }
+        
+        // Tính số đạn cần nạp
+        int bulletsNeeded = allGuns[_selectedGun].ammo - allGuns[_selectedGun].currentAmmo;
+        int bulletsToReload = Mathf.Min(bulletsNeeded, reserveAmmo[_selectedGun]);
+        
         //Less bullets to reload less time it takes
-        float totalReloadTime = (allGuns[_selectedGun].reloadDuration / allGuns[_selectedGun].ammo) * (allGuns[_selectedGun].ammo - allGuns[_selectedGun].currentAmmo);
-        reloadAnimationCo = StartCoroutine(ReloadAmmoUIAnimation(totalReloadTime));
+        float totalReloadTime = (allGuns[_selectedGun].reloadDuration / allGuns[_selectedGun].ammo) * bulletsToReload;
+        reloadAnimationCo = StartCoroutine(ReloadAmmoUIAnimation(totalReloadTime, bulletsToReload));
         yield return new WaitForSeconds(totalReloadTime);
-        allGuns[_selectedGun].ResetCurrentAmmo();
+        
+        // Nạp đạn từ dự trữ vào băng đạn
+        allGuns[_selectedGun].currentAmmo = Mathf.Min(allGuns[_selectedGun].currentAmmo + bulletsToReload, allGuns[_selectedGun].ammo);
+        reserveAmmo[_selectedGun] -= bulletsToReload;
+        
         UpdateUI();
         isReloading = false;
     }
 
 
-    IEnumerator ReloadAmmoUIAnimation(float duration)
+    IEnumerator ReloadAmmoUIAnimation(float duration, int bulletsToReload)
     {
         ammoText.color = Color.red;
         int startAmmo = allGuns[_selectedGun].currentAmmo;
+        int targetAmmo = Mathf.Min(startAmmo + bulletsToReload, allGuns[_selectedGun].ammo);
+        
         for (float t = 0f; t < duration; t += Time.deltaTime)
         {
-            ammoText.text = ((int)Mathf.Lerp(startAmmo, allGuns[_selectedGun].ammo, t / duration)).ToString() + " / " + allGuns[_selectedGun].ammo.ToString();
+            int currentDisplayAmmo = (int)Mathf.Lerp(startAmmo, targetAmmo, t / duration);
+            int currentReserveAmmo = reserveAmmo.ContainsKey(_selectedGun) ? reserveAmmo[_selectedGun] : 0;
+            ammoText.text = currentDisplayAmmo.ToString() + " / " + currentReserveAmmo.ToString();
             yield return null;
         }
     }
@@ -659,7 +765,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void UpdateUI()
     {
         ammoText.color = Color.white;
-        ammoText.text = allGuns[_selectedGun].currentAmmo.ToString() + " / " + allGuns[_selectedGun].ammo.ToString();
+        int currentReserveAmmo = reserveAmmo.ContainsKey(_selectedGun) ? reserveAmmo[_selectedGun] : 0;
+        ammoText.text = allGuns[_selectedGun].currentAmmo.ToString() + " / " + currentReserveAmmo.ToString();
     }
 
 
@@ -746,6 +853,30 @@ public class PlayerController : MonoBehaviourPunCallbacks
         {
             gunHolder.gameObject.SetActive(false);
         }
+        
+        // Gắn player vào vehicle để follow theo
+        transform.SetParent(vehicle.transform);
+        
+        // TẮT đồng bộ PhotonView khi lên xe để tránh xung đột
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null)
+        {
+            pv.Synchronization = ViewSynchronization.Off;
+            Debug.Log($"[Vehicle] Player {photonView.Owner.NickName} disabled PhotonView sync (EnterVehicle)");
+        }
+        
+        // Ẩn các nút điều khiển súng khi lên xe
+        if (UIController.instance != null)
+        {
+            if (UIController.instance.reloadButton != null)
+                UIController.instance.reloadButton.SetActive(false);
+            if (UIController.instance.shootButton != null)
+                UIController.instance.shootButton.SetActive(false);
+            if (UIController.instance.scopeButton != null)
+                UIController.instance.scopeButton.SetActive(false);
+            if (UIController.instance.weaponButton != null)
+                UIController.instance.weaponButton.SetActive(false);
+        }
     }
     
     public void EnterHelicopter(HelicopterController helicopter)
@@ -765,6 +896,30 @@ public class PlayerController : MonoBehaviourPunCallbacks
         {
             gunHolder.gameObject.SetActive(false);
         }
+        
+        // Gắn player vào helicopter để follow theo
+        transform.SetParent(helicopter.transform);
+        
+        // TẮT đồng bộ PhotonView khi lên trực thăng để tránh xung đột
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null)
+        {
+            pv.Synchronization = ViewSynchronization.Off;
+            Debug.Log($"[Helicopter] Player {photonView.Owner.NickName} disabled PhotonView sync (EnterHelicopter)");
+        }
+        
+        // Ẩn các nút điều khiển súng khi lên trực thăng
+        if (UIController.instance != null)
+        {
+            if (UIController.instance.reloadButton != null)
+                UIController.instance.reloadButton.SetActive(false);
+            if (UIController.instance.shootButton != null)
+                UIController.instance.shootButton.SetActive(false);
+            if (UIController.instance.scopeButton != null)
+                UIController.instance.scopeButton.SetActive(false);
+            if (UIController.instance.weaponButton != null)
+                UIController.instance.weaponButton.SetActive(false);
+        }
     }
 
     public void ExitVehicle()
@@ -772,6 +927,17 @@ public class PlayerController : MonoBehaviourPunCallbacks
         isInVehicle = false;
         currentVehicle = null;
         currentHelicopter = null;
+        
+        // Gỡ player ra khỏi vehicle/helicopter
+        transform.SetParent(null);
+        
+        // BẬT lại đồng bộ PhotonView khi xuống xe
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null)
+        {
+            pv.Synchronization = ViewSynchronization.ReliableDeltaCompressed;
+            Debug.Log($"[Vehicle] Player {photonView.Owner.NickName} enabled PhotonView sync (ExitVehicle)");
+        }
         
         // Enable character controller
         charController.enabled = true;
@@ -781,6 +947,19 @@ public class PlayerController : MonoBehaviourPunCallbacks
         {
             SetGun(_selectedGun);
             playerModel.SetActive(false); // Local player vẫn ẩn
+            
+            // Hiện lại các nút điều khiển súng khi xuống xe/trực thăng
+            if (UIController.instance != null)
+            {
+                if (UIController.instance.reloadButton != null)
+                    UIController.instance.reloadButton.SetActive(true);
+                if (UIController.instance.shootButton != null)
+                    UIController.instance.shootButton.SetActive(true);
+                if (UIController.instance.scopeButton != null)
+                    UIController.instance.scopeButton.SetActive(true);
+                if (UIController.instance.weaponButton != null)
+                    UIController.instance.weaponButton.SetActive(true);
+            }
         }
         else
         {

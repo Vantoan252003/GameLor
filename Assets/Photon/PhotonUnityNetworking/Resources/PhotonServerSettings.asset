@@ -46,6 +46,8 @@ MonoBehaviour:
   - ExitVehicle
   - EnterHelicopter
   - ExitHelicopter
+  - PickupAmmo
+  - RespawnAmmo
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 0
